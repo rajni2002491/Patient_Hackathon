@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
+import 'chatbot_screen.dart';
 import 'patient_profile_screen.dart';
-import 'doctor_profile_screen.dart';
+import 'reports_screen.dart';
 import 'messaging_screen.dart';
 import 'therapy_management_screen.dart';
+import '../providers/theme_provider.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
-  Future<void> _signOut(BuildContext context) async {
+  Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isLoggedIn', false);
     if (context.mounted) {
@@ -21,39 +24,58 @@ class DashboardScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDarkMode = ref.watch(themeProvider);
+    const String patientId = 'test-patient-id';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('HealthCare Connect'),
         actions: [
           IconButton(
+            icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
+            tooltip:
+                isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _signOut(context),
+            onPressed: () => _logout(context),
+            tooltip: 'Logout',
           ),
         ],
       ),
       body: GridView.count(
-        padding: const EdgeInsets.all(16),
         crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
+        padding: const EdgeInsets.all(16),
         children: [
           _DashboardCard(
-            title: 'Patient Profile',
+            title: 'AI Chatbot',
+            icon: Icons.chat,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ChatbotScreen()),
+            ),
+          ),
+          _DashboardCard(
+            title: 'Health Profile',
             icon: Icons.person,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const PatientProfileScreen()),
+                builder: (context) =>
+                    PatientProfileScreen(patientId: patientId),
+              ),
             ),
           ),
           _DashboardCard(
-            title: 'Doctor Profile',
-            icon: Icons.medical_services,
+            title: 'Reports',
+            icon: Icons.description,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const DoctorProfileScreen()),
+                builder: (context) => ReportsScreen(patientId: patientId),
+              ),
             ),
           ),
           _DashboardCard(
@@ -66,11 +88,12 @@ class DashboardScreen extends StatelessWidget {
           ),
           _DashboardCard(
             title: 'Therapy Management',
-            icon: Icons.medication,
+            icon: Icons.medical_services,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const TherapyManagementScreen()),
+                builder: (context) => const TherapyManagementScreen(),
+              ),
             ),
           ),
         ],
@@ -93,16 +116,24 @@ class _DashboardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 4,
       child: InkWell(
         onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
+            Icon(
+              icon,
+              size: 48,
+              color: Theme.of(context).primaryColor,
+            ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
