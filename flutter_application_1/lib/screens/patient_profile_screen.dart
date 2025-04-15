@@ -165,6 +165,8 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
         child: Column(
           children: [
             Container(
+              // height: 200,
+               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
