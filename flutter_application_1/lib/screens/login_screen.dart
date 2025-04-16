@@ -17,8 +17,21 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLogin = true;
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String? _selectedRole;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+
+  // Default credentials for testing
+  final Map<String, Map<String, String>> _defaultCredentials = {
+    'patient': {
+      'email': 'patient@test.com',
+      'password': 'patient123',
+    },
+    'doctor': {
+      'email': 'doctor@test.com',
+      'password': 'doctor123',
+    },
+  };
 
   @override
   void initState() {
@@ -46,25 +59,76 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() {
       _isLogin = !_isLogin;
       _formKey.currentState?.reset();
+      _selectedRole = null;
       _animationController.reset();
       _animationController.forward();
     });
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _selectedRole == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please fill all fields and select a role')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     // Simulate authentication delay
     await Future.delayed(const Duration(seconds: 1));
 
+    try {
+      if (_isLogin) {
+        // Login logic
+        final credentials = _defaultCredentials[_selectedRole]!;
+        if (_emailController.text == credentials['email'] &&
+            _passwordController.text == credentials['password']) {
+          await _handleSuccessfulAuth();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid email or password')),
+          );
+        }
+      } else {
+        // Signup logic
+        if (_emailController.text.isNotEmpty &&
+            _passwordController.text.isNotEmpty &&
+            _nameController.text.isNotEmpty) {
+          // For testing, we'll just simulate a successful signup
+          await _handleSuccessfulAuth();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please fill all fields')),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Operation failed: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleSuccessfulAuth() async {
     if (mounted) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('role', _selectedRole!);
+      await prefs.setString('email', _emailController.text);
+      if (!_isLogin) {
+        await prefs.setString('name', _nameController.text);
+      }
 
       if (context.mounted) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        if (_selectedRole == 'doctor') {
+          Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
       }
     }
   }
@@ -200,6 +264,39 @@ class _LoginScreenState extends State<LoginScreen>
                                     }
                                     if (value.length < 6) {
                                       return 'Password must be at least 6 characters';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                DropdownButtonFormField<String>(
+                                  value: _selectedRole,
+                                  decoration: InputDecoration(
+                                    labelText: 'Select Role',
+                                    prefixIcon:
+                                        const Icon(Icons.person_outline),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'patient',
+                                      child: Text('Patient'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'doctor',
+                                      child: Text('Doctor'),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedRole = value;
+                                    });
+                                  },
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please select a role';
                                     }
                                     return null;
                                   },
