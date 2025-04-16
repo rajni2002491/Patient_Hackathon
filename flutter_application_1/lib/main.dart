@@ -10,36 +10,49 @@ import 'screens/therapy_management_screen.dart';
 import 'screens/reports_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/theme_provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'screens/chatbot_screen.dart';
+import 'screens/doctor_dashboard_screen.dart';
+import 'screens/report_edit_screen.dart';
 
-void main() {
-  runApp(
-    const ProviderScope(
-      child: HealthCareApp(),
-    ),
-  );
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class HealthCareApp extends ConsumerWidget {
-  const HealthCareApp({super.key});
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDarkMode = ref.watch(themeProvider);
-    const String patientId = 'test-patient-id';
+    final themeMode =
+        ref.watch(themeProvider) ? ThemeMode.dark : ThemeMode.light;
 
     return MaterialApp(
-      title: 'HealthCare Connect',
-      theme: isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
+      title: 'MedicinAmica',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/patient-profile': (context) =>
-            PatientProfileScreen(patientId: patientId),
-        '/doctor-profile': (context) => const DoctorProfileScreen(),
-        '/messaging': (context) => const MessagingScreen(),
+        '/chatbot': (context) => const ChatbotScreen(),
+        '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
         '/therapy': (context) => const TherapyManagementScreen(),
-        '/reports': (context) => ReportsScreen(patientId: patientId),
+        '/reports': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map;
+          return ReportsScreen(patientId: args['patientId']);
+        },
+        '/edit-report': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map;
+          return ReportEditScreen(
+            reportId: args['reportId'],
+            initialContent: args['content'],
+          );
+        },
       },
     );
   }
@@ -50,48 +63,37 @@ class AuthWrapper extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDarkMode = ref.watch(themeProvider);
-    return _AuthWrapperContent(isDarkMode: isDarkMode);
-  }
-}
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-class _AuthWrapperContent extends StatefulWidget {
-  final bool isDarkMode;
+        if (snapshot.hasData) {
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance
+                .collection('users')
+                .doc(snapshot.data!.uid)
+                .get(),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-  const _AuthWrapperContent({required this.isDarkMode});
+              final userData =
+                  userSnapshot.data?.data() as Map<String, dynamic>?;
+              final isDoctor = userData?['role'] == 'doctor';
 
-  @override
-  State<_AuthWrapperContent> createState() => _AuthWrapperState();
-}
+              return isDoctor
+                  ? const DoctorDashboardScreen()
+                  : const ChatbotScreen();
+            },
+          );
+        }
 
-class _AuthWrapperState extends State<_AuthWrapperContent> {
-  bool _isLoading = true;
-  bool _isLoggedIn = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkLoginStatus();
-  }
-
-  Future<void> _checkLoginStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-      _isLoading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    return _isLoggedIn ? const DashboardScreen() : const LoginScreen();
+        return const LoginScreen();
+      },
+    );
   }
 }
